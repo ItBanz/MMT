@@ -1,0 +1,280 @@
+************ThuVien****************
+-----Serialize.cs-----
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Runtime.Serialization.Formatters.Binary;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace thuvien
+{
+    public class Serialize
+    {
+        public byte[] Serializer(object ob)
+        {
+            MemoryStream stream = new MemoryStream();
+            BinaryFormatter formatter = new BinaryFormatter();
+
+            formatter.Serialize(stream, ob);
+
+            return stream.ToArray();
+        }
+        public object Deserializer(byte[] data)
+        {
+            MemoryStream stream = new MemoryStream(data);
+            BinaryFormatter formatter = new BinaryFormatter();
+
+            return formatter.Deserialize(stream);
+        }
+    }
+}
+
+-----Student.cs-----
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace thuvien
+{
+    [Serializable]
+
+    public class Student
+    {
+        public int Id { get; set; }
+        public string Ten { get; set; }
+        public int MaSo { get; set; }
+
+        public Student() { }
+        public Student(int id, string ten, int maSo)
+        {
+            Id = id;
+            Ten = ten;
+            MaSo = maSo;
+        }
+
+        public void Nhap()
+        {
+            Console.WriteLine("Nhap Id");
+            Id = int.Parse(Console.ReadLine());
+            Console.WriteLine("Nhap ten");
+            Ten = Console.ReadLine();
+            Console.WriteLine("Nhap MaSo");
+            MaSo = int.Parse(Console.ReadLine());
+        }
+    }
+}
+************Client****************
+-----Program.cs-----
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+using System.Net;
+using System.Net.Sockets;
+using thuvien;
+using System.IO;
+using System.Runtime.InteropServices.ComTypes;
+
+namespace Client
+{
+    internal class Program
+    {
+        static void Main(string[] args)
+        {
+
+            TcpClient client = new TcpClient("127.0.0.1", 3000);
+            Serialize serialize;
+            byte[] buffer;
+            while (true)
+            {
+                NetworkStream networkStream = client.GetStream();
+                buffer = new byte[1024];
+
+                Student student = new Student();
+                //{
+                //    Id = 1,
+                //    Ten = "Nguyen Thanh",
+                //    MaSo = 123
+                //};
+
+                student.Nhap();
+
+                serialize = new Serialize();
+                buffer = serialize.Serializer(student);
+
+                networkStream.Write(buffer, 0, buffer.Length);
+
+                Console.WriteLine("Do you want to continue? (Yes/No)");
+                
+                string text = Console.ReadLine().Trim().ToLower();
+                if (text == "no")
+                {
+                    byte[] noMessage = Encoding.UTF8.GetBytes("no");
+                    networkStream.Write(noMessage, 0, noMessage.Length);
+
+                    networkStream.Close();
+                    client.Close();
+                    return;
+                }
+            }
+        }
+    }
+}
+************Server****************
+-----Program.cs-----
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+using System.Net;
+using System.Net.Sockets;
+using thuvien;
+
+namespace Server
+{
+    internal class Program
+    {
+        static void Main(string[] args)
+        {
+            IPAddress iPAddress = IPAddress.Parse("127.0.0.1");
+            int port = 3000;
+            TcpListener server = new TcpListener(iPAddress, port);
+            server.Start();
+            Console.WriteLine("Server chay....");
+            TcpClient client = server.AcceptTcpClient();
+            NetworkStream stream = client.GetStream();
+            byte[] buffer;
+
+            while (true)
+            {
+                
+                buffer = new byte[1024];
+                int bytesRead = stream.Read(buffer, 0, buffer.Length);
+                string text = Encoding.UTF8.GetString(buffer, 0, bytesRead);
+                if (text == "no")
+                {
+                    Console.WriteLine("Server dong......");
+                    stream.Close();
+                    client.Close();
+                    server.Stop();
+                    return;
+                }
+                Serialize serializecs = new Serialize();
+                Student student = (Student)serializecs.Deserializer(buffer);
+
+                Console.WriteLine("Thông tin hoc sinh");
+                Console.WriteLine($"Id: {student.Id}");
+                Console.WriteLine($"Ten: {student.Ten}");
+                Console.WriteLine($"MaSo: {student.MaSo}");
+            }
+        }
+    }
+}
+************udpServer****************
+-----Program.cs-----
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Net.Sockets;
+using System.Net;
+using System.Text;
+using System.Threading.Tasks;
+
+using System.Net;
+using System.Net.Sockets;
+using thuvien;
+
+namespace UdpServer
+{
+    internal class Program
+    {
+        static void Main(string[] args)
+        {
+            UdpClient udpServer = new UdpClient(3000);
+            IPEndPoint clientEndPoint = new IPEndPoint(IPAddress.Parse("127.0.0.1"), 3000);
+            Serialize serializecs = new Serialize();
+
+            Console.WriteLine("Server chayy....");
+
+            while (true)
+            {
+                byte[] buffer = udpServer.Receive(ref clientEndPoint);
+                string text = Encoding.UTF8.GetString(buffer);
+                if (text == "no")
+                {
+                    udpServer.Close();
+                    return;
+                }
+
+                Student student = (Student)serializecs.Deserializer(buffer);
+
+                Console.WriteLine("Student Information:");
+                Console.WriteLine($"Id: {student.Id}");
+                Console.WriteLine($"Ten: {student.Ten}");
+                Console.WriteLine($"MaSo: {student.MaSo}");
+            }
+        }
+    }
+}
+************udpClient****************
+-----Program.cs-----
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Net.Sockets;
+using System.Net;
+using System.Text;
+using System.Threading.Tasks;
+
+using thuvien;
+
+namespace udpclient
+{
+    internal class Program
+    {
+        static void Main(string[] args)
+        {
+            UdpClient udpClient = new UdpClient();
+            IPEndPoint serverEndPoint = new IPEndPoint(IPAddress.Parse("127.0.0.1"), 3000);
+            Serialize serialize;
+            byte[] buffer;
+
+            while (true)
+            {
+                Student student = new Student()
+                {
+                    Id = 1,
+                    Ten = "Nguyen Thanh",
+                    MaSo = 123
+                };
+                //student.Nhap();
+                serialize = new Serialize();
+                buffer = serialize.Serializer(student);
+                udpClient.Send(buffer, buffer.Length, serverEndPoint);
+                Console.WriteLine("Do you want to continue? (Yes/No)");
+
+                string text = Console.ReadLine().Trim().ToLower();
+                if (text == "no")
+                {
+                    byte[] noMessage = Encoding.UTF8.GetBytes(text);
+                    udpClient.Send(noMessage, noMessage.Length, serverEndPoint);
+
+                    udpClient.Close();
+                    return;
+                }
+            }
+
+            
+        }
+    }
+}
+
+
